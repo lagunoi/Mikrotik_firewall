@@ -1,0 +1,600 @@
+/tool fetch url="https://downloads.nordcdn.com/certificates/root.der"
+/certificate import file-name=root.der
+/ip ipsec mode-config
+add name=NordVPN responder=no src-address-list=local1
+add name=NordVPN1 responder=no src-address-list=local2
+/ip ipsec policy group
+add name=NordVPN
+add name=NordVPN1
+/ip ipsec profile
+add dh-group=ecp256,modp3072 enc-algorithm=aes-256,3des hash-algorithm=sha384 \
+    name=NordVPN
+add dh-group=ecp256,modp3072 enc-algorithm=aes-256,3des hash-algorithm=sha384 \
+    name=NordVPN1
+/ip ipsec peer
+add address=ro67.nordvpn.com exchange-mode=ike2 name=NordVPN profile=NordVPN
+add address=us6265.nordvpn.com exchange-mode=ike2 name=NordVPN1 profile=\
+    NordVPN
+/ip ipsec proposal
+set [ find default=yes ] auth-algorithms=sha256,sha1 enc-algorithms=\
+    aes-256-cbc,aes-192-cbc
+add name=NordVPN pfs-group=none
+add name=NordVPN1 pfs-group=none
+/ip ipsec identity
+add auth-method=eap certificate="" eap-methods=eap-mschapv2 generate-policy=\
+    port-strict mode-config=NordVPN password=xxxxxx peer=\
+    NordVPN policy-template-group=NordVPN username=xxxxx
+add auth-method=eap certificate="" eap-methods=eap-mschapv2 generate-policy=\
+    port-strict mode-config=NordVPN1 password=xxxxx peer=\
+    NordVPN1 policy-template-group=NordVPN username=xxxxx
+/ip ipsec policy
+add dst-address=0.0.0.0/0 group=NordVPN proposal=NordVPN1 src-address=\
+    0.0.0.0/0 template=yes
+set 1 dst-address=0.0.0.0/0 src-address=0.0.0.0/0
+/ip firewall filter
+add action=accept chain=input comment=\
+    "defconf: accept established,related,untracked" connection-state=\
+    established,related,untracked disabled=yes
+add action=accept chain=input comment="Allow OpenVPN" disabled=yes dst-port=\
+    1194 protocol=tcp
+add action=accept chain=input disabled=yes log=yes protocol=gre
+add action=accept chain=forward comment="Accepted Connections" \
+    connection-state=established
+add action=accept chain=forward comment="Accept Exempt IP Addresses - This is \
+    to bypass the firwall all together. Use the Address Lists to add users to \
+    this rule." src-address-list="Exempt Addresses"
+add action=accept chain=input comment="Accept Exempt IP Addresses - This is to\
+    \_bypass the firwall all together. Use the Address Lists to add users to t\
+    his rule." src-address-list="Exempt Addresses"
+add action=accept chain=input dst-port=80,8291 protocol=tcp src-address=\
+    192.168.250.0/24
+add action=accept chain=input dst-port=80,8291 protocol=tcp src-address=\
+    192.168.251.0/24
+add action=accept chain=input dst-port=80,8291 protocol=tcp src-address=\
+    192.168.249.0/24
+add action=accept chain=input dst-port=80,8291 protocol=tcp src-address=\
+    192.168.252.0/24
+add action=drop chain=input comment="L2TP Ams scanner" in-interface=ether1 \
+    src-address=216.218.206.0/24 src-address-list=CountryIPBlocks
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=accept chain=input comment="Accept Exempt IP Addresses - This is to\
+    \_bypass the firwall all together. Use the Address Lists to add users to t\
+    his rule." src-address-list="Exempt Addresses"
+add action=accept chain=forward comment="Accept Exempt IP Addresses - This is \
+    to bypass the firwall all together. Use the Address Lists to add users to \
+    this rule." src-address-list="Exempt Addresses"
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=drop chain=input comment="L2TP brutforce IP IPSec drop" \
+    connection-state=new log=yes protocol=ipsec-esp src-address-list=\
+    l2tp-brutforce
+add action=drop chain=input comment="L2TP brutforce IP drop" \
+    connection-state=new dst-port=1701,500,4500 protocol=udp \
+    src-address-list=l2tp-brutforce
+add action=add-src-to-address-list address-list=l2tp-brutforce \
+    address-list-timeout=10m chain=input comment="L2TP brutforce IP to list" \
+    connection-state=new dst-port=1701 protocol=udp src-address-list=probe2
+add action=add-src-to-address-list address-list=probe2 address-list-timeout=\
+    10s chain=input comment="L2TP brutforce protection stage 2" \
+    connection-state=new dst-port=1701 protocol=udp src-address-list=probe1
+add action=add-src-to-address-list address-list=probe1 address-list-timeout=\
+    10s chain=input comment="L2TP brutforce protection stage 1" \
+    connection-state=new dst-port=1701 protocol=udp
+add action=add-dst-to-address-list address-list=l2tp-brutforce \
+    address-list-timeout=1m chain=output comment=\
+    "L2TP-brutforce protection stage 3 v2" content="M=bad" dst-address-list=\
+    l2tp-brutforce-level2
+add action=add-dst-to-address-list address-list=l2tp-brutforce-level2 \
+    address-list-timeout=1m chain=output comment=\
+    "L2TP-brutforce protection stage 2  v2" content="M=bad" dst-address-list=\
+    l2tp-brutforce-level1
+add action=add-dst-to-address-list address-list=l2tp-brutforce-level1 \
+    address-list-timeout=1m chain=output comment=\
+    "L2TP-brutforce protection stage 1  v2" content="M=bad"
+add action=accept chain=input comment="L2TP allow only with IPsec" dst-port=\
+    1701 in-interface="ether1" ipsec-policy=in,ipsec protocol=udp
+add action=accept chain=input comment="L2TP allow" dst-port=500,4500 \
+    in-interface="ether1" protocol=udp
+add action=accept chain=input comment="allow L2TP VPN (1701/udp)" dst-port=\
+    1701 in-interface="ether1" protocol=udp
+add action=accept chain=input comment="allow L2TP VPN (4500/udp)" dst-port=\
+    4500 in-interface="ether1" protocol=udp
+add action=accept chain=input comment="allow IKE" dst-port=500 in-interface=\
+    "ether1" protocol=udp
+add action=accept chain=input comment="IPSec enable" in-interface=\
+    "ether1" protocol=ipsec-esp
+add action=drop chain=forward comment="Drop invalid connections" \
+    connection-state=invalid disabled=yes
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=drop chain=input comment="Drop anyone in Black List (Winbox)." \
+    in-interface="ether1" src-address-list="Black List (Winbox)"
+add action=jump chain=input comment="Jump to Black List (Winbox) chain." \
+    dst-port=8291 in-interface="ether1" jump-target=\
+    "Black List (Winbox) Chain" protocol=tcp
+add action=add-src-to-address-list address-list="Black List (Winbox)" \
+    address-list-timeout=2w1d chain="Black List (Winbox) Chain" comment="Trans\
+    fer repeated attempts from Black List (Winbox) Stage 3 to Black List (Winb\
+    ox)." connection-state=new in-interface="ether1" src-address-list=\
+    "Black List (Winbox) Stage 3"
+add action=add-src-to-address-list address-list="Black List (Winbox) Stage 3" \
+    address-list-timeout=1m chain="Black List (Winbox) Chain" comment=\
+    "Add succesive attempts to Black List (Winbox) Stage 3." \
+    connection-state=new in-interface="ether1" src-address-list=\
+    "Black List (Winbox) Stage 2"
+add action=add-src-to-address-list address-list="Black List (Winbox) Stage 2" \
+    address-list-timeout=1m chain="Black List (Winbox) Chain" comment=\
+    "Add succesive attempts to Black List (Winbox) Stage 2." \
+    connection-state=new in-interface="ether1" src-address-list=\
+    "Black List (Winbox) Stage 1"
+add action=add-src-to-address-list address-list="Black List (Winbox) Stage 1" \
+    address-list-timeout=1m chain="Black List (Winbox) Chain" comment=\
+    "Add initial attempt to Black List (Winbox) Stage 1." connection-state=\
+    new in-interface="ether1"
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=jump chain=input comment="Jump to DNS_DDoS Chain" jump-target=\
+    DNS_DDoS
+add action=accept chain=DNS_DDoS comment="Make exceptions for DNS" port=53 \
+    protocol=udp src-address-list=DNS_Accept
+add action=accept chain=DNS_DDoS comment="Make exceptions for DNS" \
+    dst-address-list=DNS_Accept port=53 protocol=udp
+add action=add-src-to-address-list address-list=DNS_DDoS \
+    address-list-timeout=none-dynamic chain=DNS_DDoS comment=\
+    "Add DNS_DDoS Offenders to Blacklist" port=53 protocol=udp \
+    src-address-list=!DNS_Accept
+add action=drop chain=DNS_DDoS comment="Drop DNS_DDoS Offenders" \
+    src-address-list=DNS_DDoS
+add action=return chain=DNS_DDoS comment="Return from DNS_DDoS Chain"
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=add-src-to-address-list address-list="port scanners" \
+    address-list-timeout=2w chain=input comment="Port scanners to list " \
+    protocol=tcp psd=21,3s,3,1
+add action=add-src-to-address-list address-list="port scanners" \
+    address-list-timeout=2w chain=input comment="NMAP FIN Stealth scan" \
+    protocol=tcp tcp-flags=fin,!syn,!rst,!psh,!ack,!urg
+add action=add-src-to-address-list address-list="port scanners" \
+    address-list-timeout=2w chain=input comment="SYN/FIN scan" protocol=tcp \
+    tcp-flags=fin,syn
+add action=add-src-to-address-list address-list="port scanners" \
+    address-list-timeout=2w chain=input comment="SYN/RST scan" protocol=tcp \
+    tcp-flags=syn,rst
+add action=add-src-to-address-list address-list="port scanners" \
+    address-list-timeout=2w chain=input comment="FIN/PSH/URG scan" protocol=\
+    tcp tcp-flags=fin,psh,urg,!syn,!rst,!ack
+add action=add-src-to-address-list address-list="port scanners" \
+    address-list-timeout=2w chain=input comment="ALL/ALL scan" protocol=tcp \
+    tcp-flags=fin,syn,rst,psh,ack,urg
+add action=add-src-to-address-list address-list="port scanners" \
+    address-list-timeout=2w chain=input comment="NMAP NULL scan" protocol=tcp \
+    tcp-flags=!fin,!syn,!rst,!psh,!ack,!urg
+add action=drop chain=input comment="Drop Port Scanners" in-interface=\
+    "ether1" log=yes log-prefix="Port Scanners" src-address-list=\
+    "port scanners"
+add action=return chain=detect-ddos comment="detect DDOS" dst-limit=\
+    32,32,src-and-dst-addresses/10s
+add action=add-dst-to-address-list address-list=ddos-target \
+    address-list-timeout=10m chain=detect-ddos comment="detect DDOS"
+add action=add-src-to-address-list address-list=ddos-attackers \
+    address-list-timeout=10m chain=detect-ddos comment="detect DDOS"
+add action=return chain=detect-ddos comment="SYN-ACK flood" dst-limit=\
+    32,32,src-and-dst-addresses/10s protocol=tcp tcp-flags=syn,ack
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=jump chain=input comment="Jump to RFC Bogon Chain" jump-target=\
+    "RFC Bogon Chain"
+add action=jump chain=forward comment="Jump to RFC Bogon Chain" jump-target=\
+    "RFC Bogon Chain"
+add action=drop chain="RFC Bogon Chain" comment=\
+    "Drop all packets soured from Bogons" log=yes src-address-list=Bogons
+add action=drop chain="RFC Bogon Chain" comment=\
+    "Drop all packets destined to Bogons" dst-address-list=Bogons log=yes
+add action=return chain="RFC Bogon Chain" comment=\
+    "Return from RFC Bogon Chain"	
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=jump chain=input comment="Jump to RFC ICMP Protection Chain" \
+    jump-target="RFC ICMP Protection" protocol=icmp
+add action=jump chain=forward comment="Jump to RFC ICMP Protection Chain" \
+    jump-target="RFC ICMP Protection" protocol=icmp
+add action=add-dst-to-address-list address-list="Suspected SMURF Attacks" \
+    address-list-timeout=none-dynamic chain="RFC ICMP Protection" comment=\
+    "Detect Suspected SMURF Attacks" dst-address-type=broadcast log=yes \
+    log-prefix="FW-SMURF Attacks" protocol=icmp
+add action=drop chain="RFC ICMP Protection" comment=\
+    "Drop Suspected SMURF Attacks" dst-address-list="Suspected SMURF Attacks" \
+    protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment="Accept Echo Requests" \
+    icmp-options=8:0 protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment="Accept Echo Replys" \
+    icmp-options=0:0 protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment=\
+    "Accept Destination Network Unreachable" icmp-options=3:0 protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment=\
+    "Accept Destination Host Unreachable" icmp-options=3:1 protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment=\
+    "Accept Destination Port Unreachable" icmp-options=3:3 protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment=\
+    "Fragmentation Messages" icmp-options=3:4 protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment="Source Route Failed" \
+    icmp-options=3:5 protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment=\
+    "Network Admin Prohibited" icmp-options=3:9 protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment="Host Admin Prohibited" \
+    icmp-options=3:10 protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment="Router Advertisemnet" \
+    icmp-options=9:0 protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment="Router Solicitation" \
+    icmp-options=9:10 protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment="Time Exceeded" \
+    icmp-options=11:0-1 protocol=icmp
+add action=accept chain="RFC ICMP Protection" comment=Traceroute \
+    icmp-options=30:0 protocol=icmp
+add action=drop chain="RFC ICMP Protection" comment=\
+    "Drop ALL other ICMP Messages" log=yes log-prefix="FW-ICMP Protection" \
+    protocol=icmp
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=jump chain=input comment="Jump to RFC SSH Chain" dst-port=22 \
+    jump-target="RFC SSH Chain" protocol=tcp
+add action=add-src-to-address-list address-list="Black List (SSH)" \
+    address-list-timeout=2w1d chain="RFC SSH Chain" comment=\
+    "Transfer repeated attempts from SSH Stage 3 to Black-List" \
+    connection-state=new dst-port=22 log=yes log-prefix="SSH bruteforce" \
+    protocol=tcp src-address-list="SSH Stage 3"
+add action=add-src-to-address-list address-list="SSH Stage 3" \
+    address-list-timeout=1h chain="RFC SSH Chain" comment=\
+    "Add succesive attempts to SSH Stage 3" connection-state=new dst-port=22 \
+    log=yes protocol=tcp src-address-list="SSH Stage 2"
+add action=add-src-to-address-list address-list="SSH Stage 2" \
+    address-list-timeout=30m chain="RFC SSH Chain" comment=\
+    "Add succesive attempts to SSH Stage 2" connection-state=new dst-port=22 \
+    protocol=tcp src-address-list="SSH Stage 1"
+add action=add-src-to-address-list address-list="SSH Stage 1" \
+    address-list-timeout=5m chain="RFC SSH Chain" comment=\
+    "Add intial attempt to SSH Stage 1 List" connection-state=new dst-port=22 \
+    protocol=tcp
+add action=return chain="RFC SSH Chain" comment="Return From RFC SSH Chain"
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=jump chain=input comment="Jump to RFC Telnet Chain" dst-port=23 \
+    jump-target="RFC Telnet Chain" protocol=tcp
+add action=add-src-to-address-list address-list="Black List (Telnet)" \
+    address-list-timeout=2w1d chain="RFC Telnet Chain" comment=\
+    "Transfer repeated attempts from Telnet Stage 3 to Black-List" \
+    connection-state=new dst-port=23 log=yes log-prefix="Telnet black list" \
+    protocol=tcp src-address-list="Telnet Stage 3"
+add action=add-src-to-address-list address-list="Telnet Stage 3" \
+    address-list-timeout=1h chain="RFC Telnet Chain" comment=\
+    "Add succesive attempts to Telnet Stage 3" connection-state=new dst-port=\
+    23 log=yes protocol=tcp src-address-list="Telnet Stage 2"
+add action=add-src-to-address-list address-list="Telnet Stage 2" \
+    address-list-timeout=30m chain="RFC Telnet Chain" comment=\
+    "Add succesive attempts to Telnet Stage 2" connection-state=new dst-port=\
+    23 protocol=tcp src-address-list="Telnet Stage 1"
+add action=add-src-to-address-list address-list="Telnet Stage 1" \
+    address-list-timeout=5m chain="RFC Telnet Chain" comment=\
+    "Add Intial attempt to Telnet Stage 1" connection-state=new dst-port=23 \
+    protocol=tcp
+add action=return chain="RFC Telnet Chain" comment=\
+    "Return From RFC Telnet Chain"	
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=jump chain=input comment="Jump to RFC FTP Chain" dst-port=21 \
+    jump-target="RFC FTP Chain" protocol=tcp src-port=!21 tcp-flags=\
+    syn,!fin,!rst,!psh,!ack,!urg,!ece,!cwr
+add action=add-src-to-address-list address-list="Black List (FTP)" \
+    address-list-timeout=2w1d chain="RFC FTP Chain" comment=\
+    "Transfer repeated attempts from FTP Stage 3 to Black-List" \
+    connection-state=new dst-port=21 log=yes log-prefix="FTP Black list" nth=\
+    2,2 protocol=tcp src-address-list="FTP Stage 3" tcp-flags=syn
+add action=add-src-to-address-list address-list="FTP Stage 3" \
+    address-list-timeout=1h chain="RFC FTP Chain" comment=\
+    "Add succesive attempts to FTP Stage 3" connection-state=new dst-port=21 \
+    log=yes nth=2,2 protocol=tcp src-address-list="FTP Stage 2" tcp-flags=syn
+add action=add-src-to-address-list address-list="FTP Stage 2" \
+    address-list-timeout=30m chain="RFC FTP Chain" comment=\
+    "Add succesive attempts to FTP Stage 2" connection-state=new dst-port=21 \
+    nth=2,2 protocol=tcp src-address-list="FTP Stage 1" tcp-flags=syn
+add action=add-src-to-address-list address-list="FTP Stage 1" \
+    address-list-timeout=5m chain="RFC FTP Chain" comment=\
+    "Add Intial attempt to FTP Stage 1" connection-state=new dst-port=21 nth=\
+    2,2 protocol=tcp tcp-flags=syn
+add action=return chain="RFC FTP Chain" comment="Return From RFC FTP Chain"
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=jump chain=input comment="Jump to Virus Chain" jump-target=Virus
+add action=drop chain=Virus comment="Drop Blaster Worm" dst-port=135-139 \
+    protocol=tcp
+add action=drop chain=Virus comment="Drop Blaster Worm" dst-port=445 \
+    protocol=tcp
+add action=drop chain=Virus comment="Drop Blaster Worm" dst-port=445 \
+    protocol=udp
+add action=drop chain=Virus comment=Conficker dst-port=593 protocol=tcp
+add action=drop chain=Virus comment=Worm dst-port=1024-1030 protocol=tcp
+add action=drop chain=Virus comment="ndm server" dst-port=1364 protocol=tcp
+add action=drop chain=Virus comment="screen cast" dst-port=1368 protocol=tcp
+add action=drop chain=Virus comment=hromgrafx dst-port=1373 protocol=tcp
+add action=drop chain=Virus comment="Drop MyDoom" dst-port=1080 protocol=tcp
+add action=drop chain=Virus comment="ndm requester" dst-port=1363 protocol=\
+    tcp
+add action=drop chain=Virus comment=cichlid dst-port=1377 protocol=tcp
+add action=drop chain=Virus comment=Worm dst-port=1433-1434 protocol=tcp
+add action=drop chain=Virus comment="Drop Dumaru.Y" dst-port=2283 protocol=\
+    tcp
+add action=drop chain=Virus comment="Drop Beagle" dst-port=2535 protocol=tcp
+add action=drop chain=Virus comment="Drop Beagle.C-K" dst-port=2745 protocol=\
+    tcp
+add action=drop chain=Virus comment="Drop MyDoom" dst-port=3127-3128 \
+    protocol=tcp
+add action=drop chain=Virus comment="Drop Backdoor OptixPro" dst-port=3410 \
+    protocol=tcp
+add action=drop chain=Virus comment="Drop Sasser" dst-port=5554 protocol=tcp
+add action=drop chain=Virus comment=Worm dst-port=4444 protocol=tcp
+add action=drop chain=Virus comment=Worm dst-port=4444 protocol=udp
+add action=drop chain=Virus comment="Drop Beagle.B" dst-port=8866 protocol=\
+    tcp
+add action=drop chain=Virus comment="Drop Dabber.A-B" dst-port=9898 protocol=\
+    tcp
+add action=drop chain=Virus comment="Drop Dumaru.Y" dst-port=10000 protocol=\
+    tcp
+add action=drop chain=Virus comment="Drop MyDoom.B" dst-port=10080 protocol=\
+    tcp
+add action=drop chain=Virus comment="Drop NetBus" dst-port=12345 protocol=tcp
+add action=drop chain=Virus comment="Drop Kuang2" dst-port=17300 protocol=tcp
+add action=drop chain=Virus comment="Drop SubSeven" dst-port=27374 protocol=\
+    tcp
+add action=drop chain=Virus comment="Drop PhatBot, Agobot, Gaobot" dst-port=\
+    65506 protocol=tcp
+add action=return chain=Virus comment="Return From Virus Chain"
+add action=accept chain=output comment="Section Break" disabled=yes
+/ip firewall raw
+add action=accept chain=prerouting comment="Accept Exempt IP Addresses - This \
+    is to bypass the firwall all together. Use the Address Lists to add users \
+    to this rule." src-address-list="Exempt Addresses"
+add action=accept chain=prerouting comment="Accept Whitelisted URLs" \
+    src-address-list="Whitelisted URLs"
+add action=accept chain=prerouting comment="Accept Whitelisted URLs" \
+    dst-address-list="Whitelisted URLs"
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=drop chain=prerouting comment="Drop anyone in the CountryIPBlocks" \
+    src-address-list=CountryIPBlocks
+add action=drop chain=prerouting comment="Drop anyone in the CountryIPBlock" \
+    dst-address-list=CountryIPBlocks
+add action=accept chain=output comment="Section Break" disabled=yes
+add action=drop chain=prerouting comment="Drop all packets on Joshaven Potter'\
+    s Blacklist for SpamHaus, dshield, and malc0de" src-address-list=\
+    blacklist
+add action=drop chain=prerouting comment="Drop all packets on Joshaven Potter'\
+    s Blacklist for SpamHaus, dshield, and malc0de" dst-address-list=\
+    blacklist
+/ip firewall address-list
+#add address=192.168.252.1 comment="Local LAN" list=DNS_Accept
+add address=8.8.8.8 comment="Google DNS" list=DNS_Accept
+add address=8.8.4.4 comment="Google DNS" list=DNS_Accept
+add address=4.2.2.2 comment="Google DNS" list=DNS_Accept
+add address=5.182.210.0/24 list=blacklist
+add address=1.0.0.1 comment="Cloudflare DNS" list=DNS_Accept
+add address=1.1.1.1 comment="Cloiudflare DNS" list=DNS_Accept
+#add address=192.168.252.222 comment=NordVPN list=local1
+#add address=192.168.252.223 comment=NordVPN list=local1
+#add address=192.168.252.224 comment=NordVPN list=local1
+add address=103.86.99.100 comment="NordVPN DNS" list=DNS_Accept
+add address=103.86.96.100 comment="NordVPN DNS" list=DNS_Accept
+#add address=192.168.252.225 comment=NordVPN list=local1
+add address=xxx.sn.mynetname.net comment="ROMANIA IP" list=allowed
+add address=xxxxx.sn.mynetname.net comment="GABI VECHI" list=allowed
+add address=xxxxx.sn.mynetname.net comment=BRX list=allowed
+add address=xxxxxx.sn.mynetname.net comment=IULICA list=allowed
+add address=xxxxx.sn.mynetname.net comment="GABI NOU" list=allowed
+add address=xxxxxx.sn.mynetname.net comment="CAN IP" list=allowed
+add address=192.168.250.1 comment="Local LAN" list=DNS_Accept
+add address=192.168.251.1 comment="Local LAN" list=DNS_Accept
+add address=193.231.236.30 comment="RDS DNS" list=DNS_Accept
+add address=193.231.236.25 comment="RDS DNS" list=DNS_Accept
+add address=213.154.124.1 comment="RDS DNS" list=DNS_Accept
+add address=193.231.252.1 comment="RDS DNS" list=DNS_Accept
+add list=ddos-attackers
+add list=ddos-target
+add address=xxxxx.sn.mynetname.net comment="Gabi UAT" list=\
+    "Exempt Addresses"
+add address=xxxxxx.sn.mynetname.net comment="Gabi Casa" list=\
+    "Exempt Addresses"
+add address=xxxxx.sn.mynetname.net comment=BRX list="Exempt Addresses"
+add address=xxxxxxx.sn.mynetname.net comment=RO list="Exempt Addresses"
+add address=xxxxx.sn.mynetname.net comment=Floater list=\
+    "Exempt Addresses"
+add address=xxxxx.sn.mynetname.net comment=IULvechi list=\
+    "Exempt Addresses"
+add address=xxxxx.sn.mynetname.net comment=CAN list="Exempt Addresses"
+add address=208.66.193.76 list=blacklist
+add address=mikrotik.com list="Whitelisted URLs"
+add address=80.82.65.0/24 list=blacklist
+add address=xxxxx.sn.mynetname.net comment=IUL4011 list=allowed
+add address=xxxxxx.sn.mynetname.net comment=IUL4011 list=\
+    "Exempt Addresses"
+add address=xxxxx.sn.mynetname.net comment=GabiMunca list=\
+    "Exempt Addresses"
+add address=e1d80d13a1b8.sn.mynetname.net list=allowed
+#add address=192.168.247.1 comment="Local LAN" list=DNS_Accept
+#add address=192.168.246.1 comment="Local LAN" list=DNS_Accept
+add address=168.151.158.0/23 list=blacklist
+add address=171.234.123.52 list=blacklist
+add address=123.24.234.248 list=blacklist
+add address=39.48.212.18 list=blacklist
+add address=82.159.118.82 list=blacklist
+add address=ro71.nordvpn.com comment="NordVPN Romania" list=\
+    "Exempt Addresses"
+add address=xxxxx.sn.mynetname.net comment=US4011 disabled=yes list=\
+    "Exempt Addresses"
+#add address=192.168.249.1 comment="Local LAN" list=DNS_Accept
+add address=216.218.206.0/24 list=blacklist
+add address=us5636.nordvpn.com list="Exempt Addresses"
+add address=183.129.159.0/24 list=blacklist
+#add address=192.168.252.212 comment=NordVPN1 list=local2
+#add address=192.168.252.213 comment=NordVPN1 list=local2
+#add address=192.168.252.214 comment=NordVPN1 list=local2
+#add address=192.168.252.215 comment=NordVPN1 list=local2
+add address=us5096.nordvpn.com list="Exempt Addresses"
+add address=ro69.nordvpn.com list="Exempt Addresses"
+add address=mikrotik.com list="Exempt Addresses"
+add address=us6266.nordvpn.com list="Exempt Addresses"
+add address=us6265.nordvpn.com list="Exempt Addresses"
+add address=64.71.255.204 comment="Rogers initial after reboot" list=\
+    DNS_Accept
+add address=64.71.255.198 comment="Rogers initial after reboot" list=\
+    DNS_Accept
+add address=ro66.nordvpn.com list="Exempt Addresses"
+add address=99.239.246.81 comment="Fido DHCP WAN server" list=\
+    "Whitelisted URLs"
+add address=146.88.240.4 list=blacklist
+add address=198.50.168.176 list=blacklist
+add address=125.44.152.200 list=blacklist
+add address=103.139.212.211 list=blacklist
+add address=45.56.109.221 list=blacklist
+add address=66.50.50.115 list=blacklist
+add address=68.33.90.77 list=blacklist
+/ip firewall mangle
+add action=mark-connection chain=prerouting comment=US6266/6265 \
+    new-connection-mark=under_vpn1 passthrough=yes src-address-list=local2
+add action=mark-routing chain=prerouting comment=US6266/6265 \
+    new-routing-mark=to_vpn1 passthrough=yes src-address-list=local2
+add action=change-mss chain=forward comment=US6266/6265 connection-mark=\
+    under_vpn1 new-mss=1360 passthrough=yes protocol=tcp tcp-flags=syn \
+    tcp-mss=!0-1360
+add action=mark-connection chain=prerouting comment="ROMANIA ro71" \
+    new-connection-mark=under_vpn passthrough=yes src-address-list=local1
+add action=mark-routing chain=prerouting comment="ROMANIA ro71" \
+    new-routing-mark=to_vpn passthrough=yes src-address-list=local1
+add action=change-mss chain=forward comment="ROMANIA ro71" connection-mark=\
+    under_vpn new-mss=1360 passthrough=yes protocol=tcp tcp-flags=syn \
+    tcp-mss=!0-1360
+/system script
+add dont-require-permissions=no name=Download_malc0de owner=HomeRouter \
+    policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive source="\
+    \n /tool fetch url=\"http://joshaven.com/malc0de.rsc\" mode=http;\
+    \n :log info \"Downloaded malc0de.rsc from Joshaven.com\";\
+    \n "
+add dont-require-permissions=no name=Replace_malc0de owner=HomeRouter policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive source="\
+    \n :foreach i in=[/ip firewall address-list find ] do={\
+    \n :if ( [/ip firewall address-list get \$i comment] = \"malc0de\" ) do={\
+    \n /ip firewall address-list remove \$i\
+    \n }\
+    \n }\
+    \n /import file-name=malc0de.rsc;\
+    \n :log info \"Removal old malc0de and add new\";\
+    \n "
+add dont-require-permissions=no name=Download_spamhaus owner=HomeRouter \
+    policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive source="\
+    \n /tool fetch url=\"http://joshaven.com/spamhaus.rsc\" mode=http;\
+    \n :log info \"Downloaded spamhaus.rsc from Joshaven.com\";\
+    \n "
+add dont-require-permissions=no name=Replace_spamhaus owner=HomeRouter \
+    policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive source="\
+    \n :foreach i in=[/ip firewall address-list find ] do={\
+    \n :if ( [/ip firewall address-list get \$i comment] = \"SpamHaus\" ) do={\
+    \n /ip firewall address-list remove \$i\
+    \n }\
+    \n }\
+    \n /import file-name=spamhaus.rsc;\
+    \n :log info \"Removal old openbl and add new\";\
+    \n "
+add dont-require-permissions=no name=Download_dshield owner=HomeRouter \
+    policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive source="\
+    \n /tool fetch url=\"http://joshaven.com/dshield.rsc\" mode=http;\
+    \n :log info \"Downloaded dshield.rsc from Joshaven.com\";\
+    \n "
+add dont-require-permissions=no name=Replace_dshield owner=HomeRouter policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive source="\
+    \n :foreach i in=[/ip firewall address-list find ] do={\
+    \n :if ( [/ip firewall address-list get \$i comment] = \"DShield\" ) do={\
+    \n /ip firewall address-list remove \$i\
+    \n }\
+    \n }\
+    \n /import file-name=dshield.rsc;\
+    \n :log info \"Removal old dshield and add new\";\
+    \n "
+add dont-require-permissions=no name="FireHOL L2" owner=HomeRouter policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon source="/\
+    ip firewall address-list\r\
+    \n:local update do={\r\
+    \n:do {\r\
+    \n:local data ([:tool fetch url=\$url user=\$user password=\$password outp\
+    ut=user as-value]->\"data\")\r\
+    \n:local array [find dynamic list=blacklist]\r\
+    \n:foreach value in=\$array do={:set array (array,[get \$value address])}\
+    \r\
+    \n:while ([:len \$data]!=0) do={\r\
+    \n:if ([:pick \$data 0 [:find \$data \"\\n\"]]~\"^[0-9]{1,3}\\\\.[0-9]{1,3\
+    }\\\\.[0-9]{1,3}\\\\.[0-9]{1,3}\") do={\r\
+    \n:local ip ([:pick \$data 0 [:find \$data \$delimiter]].\$cidr)\r\
+    \n:do {add list=blacklist address=\$ip comment=\$description timeout=1d} o\
+    n-error={\r\
+    \n:do {set (\$array->([:find \$array \$ip]-[:len \$array]/2)) timeout=1d} \
+    on-error={}\r\
+    \n}\r\
+    \n}\r\
+    \n:set data [:pick \$data ([:find \$data \"\\n\"]+1) [:len \$data]]\r\
+    \n}\r\
+    \n} on-error={:log warning \"Address list <\$description> update failed\"}\
+    \r\
+    \n}\r\
+    \n\$update url=https://raw.githubusercontent.com/firehol/blocklist-ipsets/\
+    master/dshield_top_1000.ipset description=\"FireHOL Level2\" delimiter=(\"\
+    \\n\")\r\
+    \n"
+/system scheduler
+add comment=Download_malc0de interval=3d name=Download_malc0de on-event=\
+    Download_malc0de policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive start-date=\
+    dec/29/2020 start-time=23:30:00
+add comment=Replace_spamhaus interval=3d name=Replace_spamhaus on-event=\
+    Replace_spamhaus policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive start-date=\
+    dec/29/2020 start-time=23:37:00
+add comment=Download_spamhaus interval=3d name=Download_spamhaus on-event=\
+    Download_spamhaus policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive start-date=\
+    dec/29/2020 start-time=23:35:00
+add comment=Replace_malc0de interval=3d name=Replace_malc0de on-event=\
+    Replace_malc0de policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive start-date=\
+    dec/29/2020 start-time=23:32:00
+add comment="Download dshield" interval=3d name=Download_dshield on-event=\
+    Download_dshield policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive start-date=\
+    dec/29/2020 start-time=23:42:00
+add comment="Apply dshield" interval=3d name=Replace_dshield on-event=\
+    Replace_dshield policy=\
+    ftp,reboot,read,write,policy,test,password,sniff,sensitive start-date=\
+    dec/29/2020 start-time=23:44:00
+add comment="Check Upgrade Router" disabled=yes interval=1d name=\
+    Upgrade_Router on-event="/system upgrade\r\
+    \nrefresh\r\
+    \n:delay  10\r\
+    \ndownload 0\r\
+    \n/\r\
+    \n/system reboot  \r\
+    \n:delay 60\r\
+    \ny\r\
+    \n/" policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive \
+    start-date=dec/29/2020 start-time=02:00:01
+add comment="FireHOL L2" interval=1d name="FireHOL L2" on-event="FireHOL L2" \
+    policy=ftp,reboot,read,write,policy,test,password,sniff,sensitive,romon \
+    start-date=dec/29/2020 start-time=23:55:00
+/ip firewall service-port
+set ftp disabled=yes
+set tftp disabled=yes
+set irc disabled=yes ports=5001
+set h323 disabled=yes
+set sip disabled=yes
+set pptp disabled=yes
+set udplite disabled=yes
+set dccp disabled=yes
+set sctp disabled=yes
+/ip cloud
+set ddns-enabled=yes ddns-update-interval=5m
+/tool graphing
+set store-every=hour
+/tool graphing interface
+add
+/tool graphing queue
+add
+/tool graphing resource
+add
+/ip upnp
+set enabled=yes
